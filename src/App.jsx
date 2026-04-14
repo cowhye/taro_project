@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react'; 
 import TarotCard from './components/TarotCard';
 import tarotData from './data/tarot.json';
 import { sendTopicToLLM, sendCardsToLLM } from './services/llmService';
@@ -113,26 +113,34 @@ function App() {
   };
 
   // 3단계: 결과 보기 버튼 클릭 (선택된 카드를 LLM에 전달하여 해석)
-  const handleViewResult = async () => {
-    setIsLoading(true);
-    try {
-      // 선택된 카드 정보를 JSON 형태로 가공
-      const selectedCardsInfo = selectedIndices.map(index => ({
-        name: shuffledCards[index].name,
-        direction: cardStates[index].isReversed ? 'reversed' : 'upright'
-      }));
+ const handleViewResult = async () => {
+  setIsLoading(true);
+  try {
+    const selectedCardsInfo = selectedIndices.map(index => ({
+      name: shuffledCards[index].name,
+      direction: cardStates[index].isReversed ? 'reversed' : 'upright'
+    }));
 
-      const response = await sendCardsToLLM(userTopic, selectedCardsInfo, llmSpread.positions);
-      setInterpretationResult(response.interpretation);
-      setStep('RESULT');
-    } catch (error) {
-      console.error("해석 중 오류 발생:", error);
-      alert("해석을 가져오는 중 오류가 발생했습니다.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    const response = await sendCardsToLLM(
+      userTopic,
+      selectedCardsInfo,
+      llmSpread.positions
+    );
 
+    // ✅ 문자열 JSON 방어
+    const parsed =
+      typeof response === "string" ? JSON.parse(response) : response;
+
+    // ✅ 핵심: interpretation 배열만 저장
+    setInterpretationResult(parsed.interpretation);
+
+    setStep('RESULT');
+  } catch (error) {
+    alert("해석 오류");
+  } finally {
+    setIsLoading(false);
+  }
+};
   // 초기 화면으로 돌아가기
   const resetApp = () => {
     setStep('INPUT');
@@ -234,7 +242,11 @@ function App() {
             {selectedIndices.map((index, i) => {
               const card = shuffledCards[index];
               const isReversed = cardStates[index]?.isReversed;
-              const interpretation = interpretationResult[i];
+              console.log("card:", card);
+              console.log("interpretationResult:", interpretationResult);
+              
+              const interpretation = interpretationResult?.[i];
+              if (!interpretation) return null;
               
               return (
                 <div key={card.id + '-' + i} className="result-item">

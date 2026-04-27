@@ -32,6 +32,7 @@ export const sendTopicToLLM = async (topic) => {
 export const sendCardsToLLM = async (topic, selectedCards, positions) => {
   const systemPrompt = `당신은 전문 타로 리더입니다.
 질문에 대해 각 카드의 위치와 의미를 포함하여 깊이 있게 해석해주세요.
+또한 모든 카드를 종합하여 최종적인 결론이나 조언(총평)을 한 문단으로 작성해주세요.
 반드시 아래 JSON 형식으로만 응답하세요.
 {
   "interpretation": [
@@ -39,7 +40,8 @@ export const sendCardsToLLM = async (topic, selectedCards, positions) => {
       "position": "위치 명칭 (예: 과거)",
       "meaning": "해당 위치와 카드의 조합에 대한 상세 해석"
     }
-  ]
+  ],
+  "summary": "전체적인 카드의 흐름과 질문에 대한 최종적인 종합 해석 및 조언"
 }`;
 
   const userMessage = `

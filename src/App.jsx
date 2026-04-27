@@ -131,8 +131,8 @@ function App() {
     const parsed =
       typeof response === "string" ? JSON.parse(response) : response;
 
-    // ✅ 핵심: interpretation 배열만 저장
-    setInterpretationResult(parsed.interpretation);
+    // ✅ interpretation 배열과 summary 모두 저장하기 위해 parsed 전체 저장
+    setInterpretationResult(parsed);
 
     setStep('RESULT');
   } catch (error) {
@@ -239,14 +239,12 @@ function App() {
           </div>
 
           <div className="selected-cards-display">
-            {selectedIndices.map((index, i) => {
+            {(interpretationResult.interpretation || []).map((interpretation, i) => {
+              const index = selectedIndices[i];
               const card = shuffledCards[index];
               const isReversed = cardStates[index]?.isReversed;
-              console.log("card:", card);
-              console.log("interpretationResult:", interpretationResult);
               
-              const interpretation = interpretationResult?.[i];
-              if (!interpretation) return null;
+              if (!card) return null;
               
               return (
                 <div key={card.id + '-' + i} className="result-item">
@@ -264,6 +262,14 @@ function App() {
               );
             })}
           </div>
+
+          {/* 종합 해석 추가 */}
+          {interpretationResult.summary && (
+            <div className="total-interpretation">
+              <h3>✨ 총 종합 해석</h3>
+              <p>{interpretationResult.summary}</p>
+            </div>
+          )}
           
           <div className="result-footer">
             <button className="reset-btn" onClick={resetApp}>새로운 상담 시작하기</button>

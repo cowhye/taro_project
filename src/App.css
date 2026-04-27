@@ -307,6 +307,35 @@
   border-radius: 10px;
 }
 
+/* 종합 해석 스타일 */
+.total-interpretation {
+  width: 100%;
+  max-width: 800px;
+  margin-top: 40px;
+  background: rgba(212, 175, 55, 0.1);
+  border: 2px solid #d4af37;
+  padding: 30px;
+  border-radius: 20px;
+  box-shadow: 0 0 20px rgba(212, 175, 55, 0.2);
+  animation: fadeIn 1.5s ease;
+}
+
+.total-interpretation h3 {
+  color: #d4af37;
+  font-size: 1.8rem;
+  margin-bottom: 20px;
+  text-align: center;
+  border-bottom: 1px solid rgba(212, 175, 55, 0.3);
+  padding-bottom: 10px;
+}
+
+.total-interpretation p {
+  font-size: 1.15rem;
+  line-height: 1.8;
+  color: #fff;
+  white-space: pre-wrap;
+}
+
 .result-footer {
   margin: 3rem 0;
 }

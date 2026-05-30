@@ -356,6 +356,25 @@
   background: #d4af37;
   color: #0f0c29;
 }
+.result-card-img.reversed {
+  transform: rotate(180deg);
+}
+
+.card-interpretation-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 20px;
+  margin-top: 30px;
+}
+
+.interpretation-item {
+  width: 250px;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 15px;
+  border-radius: 15px;
+  text-align: center;
+}
 
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(20px); }

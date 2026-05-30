@@ -1,147 +1,113 @@
-import React, { useState, useEffect, useCallback } from 'react'; 
+import React, { useState, useEffect, useCallback } from 'react';
 import TarotCard from './components/TarotCard';
 import tarotData from './data/tarot.json';
 import { sendTopicToLLM, sendCardsToLLM } from './services/llmService';
+import { supabase } from './supabase';
 import './App.css';
 
-/**
- * App 컴포넌트 - LLM 기반 타로 시스템
- * 1. 주제 입력 -> LLM이 스프레드 결정
- * 2. 카드 선택
- * 3. 선택된 카드 전달 -> LLM이 최종 해석
- */
 function App() {
-  // --- 상태 관리 ---
-  const [userTopic, setUserTopic] = useState(''); // 사용자 질문/주제
-  const [shuffledCards, setShuffledCards] = useState([]); // 전체 셔플된 카드 목록
-  
-  // LLM 응답 상태
-  const [llmSpread, setLlmSpread] = useState(null); // { cardCount, positions }
-  const [interpretationResult, setInterpretationResult] = useState(null); // 최종 해석 결과
-  
-  // 진행 상태
-  const [step, setStep] = useState('INPUT'); // INPUT, SELECTION, RESULT
-  const [isLoading, setIsLoading] = useState(false); // 로딩 여부
-  
-  // 카드 선택 상태
-  const [selectedIndices, setSelectedIndices] = useState([]); // 선택된 카드의 인덱스 리스트
-  const [cardStates, setCardStates] = useState({}); // 각 카드의 뒤집힘 및 역방향 상태
+  const [session, setSession] = useState(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [usageInfo, setUsageInfo] = useState({ count: 0, limit: 5 });
 
-  // --- 초기화 ---
-  useEffect(() => {
-    shuffleDeck();
-  }, []);
+  const [userTopic, setUserTopic] = useState('');
+  const [shuffledCards, setShuffledCards] = useState([]);
+  const [llmSpread, setLlmSpread] = useState(null);
+  const [interpretationResult, setInterpretationResult] = useState(null);
+  const [step, setStep] = useState('INPUT'); 
+  const [isLoading, setIsLoading] = useState(false);
+  const [selectedIndices, setSelectedIndices] = useState([]);
+  const [cardStates, setCardStates] = useState({});
 
-  // 카드 셔플 함수
   const shuffleDeck = useCallback(() => {
     let fullDeck = [...tarotData];
-    
-    // 78장 분량으로 데이터 확장 (데이터가 부족할 경우 복제)
     while (fullDeck.length < 78) {
-      fullDeck = [...fullDeck, ...tarotData.map(c => ({ ...c, id: fullDeck.length + c.id }))];
+      fullDeck = [...fullDeck, ...tarotData.map(c => ({ ...c, id: `extra-${fullDeck.length}-${c.id}` }))];
     }
     fullDeck = fullDeck.slice(0, 78);
-
-    // 피셔-예이츠 셔플 알고리즘
     for (let i = fullDeck.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [fullDeck[i], fullDeck[j]] = [fullDeck[j], fullDeck[i]];
     }
-    
     setShuffledCards(fullDeck);
-    setSelectedIndices([]);
-    setCardStates({});
   }, []);
 
-  // --- 핸들러 함수 ---
-
-  // 1단계: 주제 제출 (LLM에 전달하여 스프레드 결정)
-  const handleTopicSubmit = async (e) => {
-    if (e) e.preventDefault();
-    if (!userTopic.trim()) {
-      alert("주제를 입력해주세요.");
-      return;
-    }
-
-    setIsLoading(true);
+  const fetchUsage = useCallback(async (userId) => {
+    if (!userId) return;
     try {
-      const response = await sendTopicToLLM(userTopic);
-      setLlmSpread(response);
-      setStep('SELECTION');
-      shuffleDeck(); // 매번 새로운 상담을 위해 셔플
-    } catch (error) {
-      console.error("스프레드 결정 중 오류 발생:", error);
-      alert("오류가 발생했습니다. 다시 시도해주세요.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      const { data } = await supabase.from('user_usage').select('usage_count, usage_limit').eq('id', userId).single();
+      if (data) setUsageInfo({ count: data.usage_count, limit: data.usage_limit });
+    } catch (e) { console.error("사용량 조회 실패:", e); }
+  }, []);
 
-  // "오늘의 운세 보기" 고정 모드
-  const handleDailyFortune = async () => {
-    const dailyTopic = "오늘의 전반적인 운세";
-    setUserTopic(dailyTopic);
-    setIsLoading(true);
-    try {
-      const response = await sendTopicToLLM(dailyTopic);
-      setLlmSpread(response);
-      setStep('SELECTION');
+  useEffect(() => {
+    const initAuth = async () => {
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      if (currentSession) {
+        setSession(currentSession);
+        fetchUsage(currentSession.user.id);
+      }
       shuffleDeck();
+      setIsAuthLoading(false);
+    };
+    initAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, currentSession) => {
+      setSession(currentSession);
+      if (currentSession) fetchUsage(currentSession.user.id);
+    });
+    return () => subscription?.unsubscribe();
+  }, [shuffleDeck, fetchUsage]);
+
+  const handleTopicSubmit = async (customTopic) => {
+    const topic = customTopic || userTopic;
+    if (!topic.trim()) return alert("주제를 입력해주세요.");
+    
+    setIsLoading(true);
+    try {
+      const response = await sendTopicToLLM(topic);
+      setLlmSpread(response);
+      setUserTopic(topic); // 오늘의 운세 클릭 시 텍스트 업데이트용
+      setStep('SELECTION');
     } catch (error) {
-      console.error("스프레드 결정 중 오류 발생:", error);
-    } finally {
-      setIsLoading(false);
-    }
+      console.error(error);
+      alert("서버 연결 실패! 서버(node server.js)가 켜져 있는지 확인하세요.");
+    } finally { setIsLoading(false); }
   };
 
-  // 2단계: 카드 클릭 핸들러
   const handleCardClick = (index) => {
     if (step !== 'SELECTION' || isLoading) return;
-    if (selectedIndices.includes(index) || selectedIndices.length >= llmSpread.cardCount) {
-      return;
-    }
+    if (selectedIndices.includes(index) || selectedIndices.length >= (llmSpread?.cardCount || 0)) return;
 
-    const newSelectedIndices = [...selectedIndices, index];
-    setSelectedIndices(newSelectedIndices);
-
-    // 카드의 상태(뒤집힘, 역방향 여부) 결정
-    const isReversed = Math.random() < 0.3; // 30% 확률로 역방향 (타로 관례상 정방향이 더 많음)
+    setSelectedIndices(prev => [...prev, index]);
     setCardStates(prev => ({
       ...prev,
-      [index]: { isFlipped: true, isReversed }
+      [index]: { isFlipped: true, isReversed: Math.random() < 0.3 }
     }));
   };
 
-  // 3단계: 결과 보기 버튼 클릭 (선택된 카드를 LLM에 전달하여 해석)
- const handleViewResult = async () => {
-  setIsLoading(true);
-  try {
-    const selectedCardsInfo = selectedIndices.map(index => ({
-      name: shuffledCards[index].name,
-      direction: cardStates[index].isReversed ? 'reversed' : 'upright'
-    }));
+  const handleViewResult = async () => {
+    setIsLoading(true);
+    try {
+      const selectedCardsInfo = selectedIndices.map(index => ({
+        name: shuffledCards[index].name,
+        direction: cardStates[index].isReversed ? 'reversed' : 'upright'
+      }));
+      
+      const response = await sendCardsToLLM(userTopic, selectedCardsInfo, llmSpread.positions);
+      setInterpretationResult(response);
+      
+      if (session) {
+        await supabase.rpc('increment_usage', { user_id: session.user.id });
+        fetchUsage(session.user.id);
+      }
+      setStep('RESULT');
+    } catch (error) {
+      console.error(error);
+      alert("해석 도중 오류 발생");
+    } finally { setIsLoading(false); }
+  };
 
-    const response = await sendCardsToLLM(
-      userTopic,
-      selectedCardsInfo,
-      llmSpread.positions
-    );
-
-    // ✅ 문자열 JSON 방어
-    const parsed =
-      typeof response === "string" ? JSON.parse(response) : response;
-
-    // ✅ interpretation 배열과 summary 모두 저장하기 위해 parsed 전체 저장
-    setInterpretationResult(parsed);
-
-    setStep('RESULT');
-  } catch (error) {
-    alert("해석 오류");
-  } finally {
-    setIsLoading(false);
-  }
-};
-  // 초기 화면으로 돌아가기
   const resetApp = () => {
     setStep('INPUT');
     setUserTopic('');
@@ -152,65 +118,58 @@ function App() {
     shuffleDeck();
   };
 
-  // --- 렌더링 ---
+  if (isAuthLoading) return <div className="loading-overlay">신비한 기운을 모으는 중...</div>;
+
+  if (!session) {
+    return (
+      <div className="app-container login-page">
+        <h1>🔮 AI 신비 타로</h1>
+        <button className="main-btn" onClick={() => supabase.auth.signInWithOAuth({ provider: 'google' })}>Google 로그인</button>
+      </div>
+    );
+  }
 
   return (
     <div className="app-container">
+      <div className="user-info">
+        <span>남은 기회: {usageInfo.limit - usageInfo.count}회 | {session.user.email}님</span>
+        <button onClick={() => supabase.auth.signOut()}>로그아웃</button>
+      </div>
+
       <header className="app-header">
-        <h1>AI 신비 타로</h1>
-        <p>당신의 질문에 LLM이 맞춤 스프레드와 깊이 있는 해석을 제공합니다</p>
+        <h1 onClick={resetApp} style={{cursor:'pointer'}}>AI 신비 타로</h1>
       </header>
 
-      {isLoading && (
-        <div className="loading-overlay">
-          <div className="loader"></div>
-          <p>{step === 'INPUT' ? 'LLM이 최적의 스프레드를 구성 중입니다...' : 'LLM이 카드를 분석하고 있습니다...'}</p>
-        </div>
-      )}
+      {isLoading && <div className="loading-overlay"><div className="loader"></div></div>}
 
-      {/* 1. 주제 입력 단계 */}
       {step === 'INPUT' && (
         <section className="input-section">
-          <form onSubmit={handleTopicSubmit} className="topic-input-container">
-            <label htmlFor="topic-input">무엇이 궁금하신가요?</label>
+          <form onSubmit={(e) => { e.preventDefault(); handleTopicSubmit(); }} className="topic-input-container">
             <input 
-              id="topic-input"
               type="text" 
               value={userTopic}
               onChange={(e) => setUserTopic(e.target.value)}
-              placeholder="예: 이번 프로젝트의 결과가 어떻게 될까요? / 연애운이 궁금해요"
+              placeholder="궁금한 것을 입력하세요 (예: 연애운, 금전운)"
               className="topic-input"
-              disabled={isLoading}
             />
-            <div className="button-group">
-              <button type="submit" className="main-btn" disabled={isLoading}>스프레드 확인하기</button>
-              <button type="button" className="daily-btn" onClick={handleDailyFortune} disabled={isLoading}>오늘의 운세 보기</button>
-            </div>
+            <button type="submit" className="main-btn">상담 시작하기</button>
           </form>
+          <div className="quick-buttons">
+            <button className="secondary-btn" onClick={() => handleTopicSubmit("오늘의 전반적인 운세가 궁금해!")}>
+              ✨ 오늘의 운세 바로보기
+            </button>
+          </div>
         </section>
       )}
 
-      {/* 2. 카드 선택 단계 */}
       {step === 'SELECTION' && llmSpread && (
         <section className="selection-section">
-          <div className="selection-header">
-            <h2>"{userTopic}"</h2>
-            <p className="spread-info">
-              LLM이 제안한 스프레드: <strong>총 {llmSpread.cardCount}장</strong>의 카드를 선택해주세요.
-            </p>
-            <div className="position-hints">
-              {llmSpread.positions.map((pos, idx) => (
-                <span key={idx} className={`pos-hint ${selectedIndices.length > idx ? 'checked' : ''}`}>
-                  {idx + 1}. {pos}
-                </span>
-              ))}
-            </div>
-          </div>
-
+          <h2>"{userTopic}"</h2>
+          <p>카드를 {llmSpread.cardCount}장 선택해 주세요 ({selectedIndices.length}/{llmSpread.cardCount})</p>
           <div className="card-grid">
             {shuffledCards.map((card, index) => (
               <TarotCard
-                key={`${card.id}-${index}`}
+                key={card.id}
                 card={card}
                 isSelected={selectedIndices.includes(index)}
                 isFlipped={cardStates[index]?.isFlipped}
@@ -219,62 +178,33 @@ function App() {
               />
             ))}
           </div>
-          
           {selectedIndices.length === llmSpread.cardCount && (
-            <div className="result-action">
-              <button className="view-result-btn" onClick={handleViewResult}>해석 시작하기</button>
-            </div>
+            <button className="view-result-btn" onClick={handleViewResult}>해석 보기</button>
           )}
         </section>
       )}
 
-      {/* 3. 결과 해석 단계 */}
       {step === 'RESULT' && interpretationResult && (
-        <div className="result-view">
-          <div className="result-header">
-            <h2>타로 해석 결과</h2>
-            <div className="user-topic-display">
-              <strong>질문:</strong> "{userTopic}"
-            </div>
-          </div>
-
-          <div className="selected-cards-display">
-            {(interpretationResult.interpretation || []).map((interpretation, i) => {
-              const index = selectedIndices[i];
-              const card = shuffledCards[index];
-              const isReversed = cardStates[index]?.isReversed;
-              
-              if (!card) return null;
-              
+        <section className="result-section">
+          <div className="card-interpretation-list">
+            {interpretationResult.interpretation.map((item, index) => {
+              const cardData = shuffledCards[selectedIndices[index]];
+              const isReversed = cardStates[selectedIndices[index]]?.isReversed;
               return (
-                <div key={card.id + '-' + i} className="result-item">
-                  <div className="position-label">{interpretation.position}</div>
-                  <div className={`result-card-img ${isReversed ? 'reversed' : ''}`}>
-                    <img src={card.image} alt={card.name} />
-                  </div>
-                  <div className="result-info">
-                    <h3>{card.name} {isReversed ? '(역방향)' : '(정방향)'}</h3>
-                    <p className="meaning">
-                      {interpretation.meaning}
-                    </p>
-                  </div>
+                <div key={index} className="interpretation-item">
+                  <h3>{item.pos || llmSpread.positions[index]}: {cardData.name} {isReversed ? '(역)' : ''}</h3>
+                  <img src={cardData.image} alt={cardData.name} style={{ width: '120px', transform: isReversed ? 'rotate(180deg)' : 'none', borderRadius: '10px' }} />
+                  <p>{item.meaning}</p>
                 </div>
               );
             })}
           </div>
-
-          {/* 종합 해석 추가 */}
-          {interpretationResult.summary && (
-            <div className="total-interpretation">
-              <h3>✨ 총 종합 해석</h3>
-              <p>{interpretationResult.summary}</p>
-            </div>
-          )}
-          
-          <div className="result-footer">
-            <button className="reset-btn" onClick={resetApp}>새로운 상담 시작하기</button>
+          <div className="total-summary">
+            <h3>🔮 종합 해석</h3>
+            <p>{interpretationResult.summary}</p>
+            <button className="main-btn" onClick={resetApp}>다른 상담 하기</button>
           </div>
-        </div>
+        </section>
       )}
     </div>
   );

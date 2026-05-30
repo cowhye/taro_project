@@ -4,6 +4,13 @@ const dotenv = require("dotenv");
 
 dotenv.config();
 
+const { createClient } = require('@supabase/supabase-js');
+
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_KEY
+);
+
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -15,7 +22,7 @@ const callClaudeAPI = async (systemPrompt, userMessage) => {
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
-      "x-api-key": process.env.ANTHROPIC_API_KEY,
+      "x-api-key": process.env.ANTHROPIC_API_KEY // #claude,
       "anthropic-version": "2023-06-01",
       "content-type": "application/json",
     },
@@ -90,7 +97,11 @@ app.post("/cards", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
+app.get("/test-db", async (req, res) => {
+  const { data, error } = await supabase.from("User").select("*");
+  if (error) return res.json(error);
+  res.json(data);
+});
 app.listen(PORT, () => {
   console.log(`✅ Server running on http://localhost:${PORT}`);
 });

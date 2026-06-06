@@ -69,12 +69,31 @@ const callClaudeAPI = async (systemPrompt, userMessage) => {
   }
 };
 
+const TOPIC_SYSTEM_PROMPT = `당신은 타로 카드 배열 전문가입니다.
+사용자의 고민 주제를 받아 적절한 타로 스프레드를 JSON으로 반환하세요.
+반드시 아래 형식의 JSON만 반환하고, 다른 텍스트는 포함하지 마세요.
+{
+  "cardCount": 3,
+  "positions": ["과거", "현재", "미래"]
+}
+cardCount는 주제에 맞게 1~5장 사이로 결정하고, positions는 각 카드의 의미 있는 위치명을 한국어로 작성하세요.`;
+
+const CARDS_SYSTEM_PROMPT = `당신은 전문 타로 리더입니다.
+사용자의 고민, 선택된 카드와 방향(정방향/역방향)을 받아 타로 해석을 JSON으로 반환하세요.
+반드시 아래 형식의 JSON만 반환하고, 다른 텍스트는 포함하지 마세요.
+{
+  "interpretation": [
+    { "pos": "위치명", "meaning": "카드 해석 (3~4문장)" }
+  ],
+  "summary": "전체 종합 해석 (3~5문장)"
+}`;
+
 // 스프레드
 app.post("/topic", async (req, res) => {
-  console.log("🔹 [POST /topic] Requested with body keys:", Object.keys(req.body));
+  console.log("🔹 [POST /topic] Requested");
   try {
-    const { systemPrompt, userMessage } = req.body;
-    const result = await callClaudeAPI(systemPrompt, userMessage);
+    const { topic } = req.body;
+    const result = await callClaudeAPI(TOPIC_SYSTEM_PROMPT, topic);
     res.json(result);
   } catch (err) {
     console.error("❌ [POST /topic] SERVER ERROR:", err.message);
@@ -84,10 +103,11 @@ app.post("/topic", async (req, res) => {
 
 // 카드 해석
 app.post("/cards", async (req, res) => {
-  console.log("🔹 [POST /cards] Requested with body keys:", Object.keys(req.body));
+  console.log("🔹 [POST /cards] Requested");
   try {
-    const { systemPrompt, userMessage } = req.body;
-    const result = await callClaudeAPI(systemPrompt, userMessage);
+    const { topic, cards } = req.body;
+    const userMessage = `고민: ${topic}\n선택된 카드: ${JSON.stringify(cards)}`;
+    const result = await callClaudeAPI(CARDS_SYSTEM_PROMPT, userMessage);
     res.json(result);
   } catch (err) {
     console.error("❌ [POST /cards] SERVER ERROR:", err.message);

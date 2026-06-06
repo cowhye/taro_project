@@ -1,22 +1,20 @@
 // llmService.js
 const SERVER_URL = import.meta.env.VITE_SERVER_URL;
 
-const callServer = async (url, systemPrompt, userMessage) => {
+const callServer = async (url, body) => {
   const response = await fetch(`${SERVER_URL}${url}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ systemPrompt, userMessage }),
+    body: JSON.stringify(body),
   });
+  if (!response.ok) throw new Error(`서버 오류: ${response.status}`);
   return await response.json();
 };
 
 export const sendTopicToLLM = async (topic) => {
-  const systemPrompt = "테스트 모드";
-  return await callServer("/topic", systemPrompt, topic);
+  return await callServer("/topic", { topic });
 };
 
-export const sendCardsToLLM = async (topic, selectedCards, positions) => {
-  const systemPrompt = "테스트 모드";
-  // 이 부분이 중요합니다! 서버가 주는 fakeInterpretation 형식에 맞춰 전달
-  return await callServer("/cards", systemPrompt, JSON.stringify({ topic, selectedCards }));
+export const sendCardsToLLM = async (topic, selectedCards) => {
+  return await callServer("/cards", { topic, cards: selectedCards });
 };

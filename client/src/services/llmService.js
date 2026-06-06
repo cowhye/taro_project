@@ -1,6 +1,8 @@
 // llmService.js
+const SERVER_URL = import.meta.env.VITE_SERVER_URL;
+
 const callServer = async (url, systemPrompt, userMessage) => {
-  const response = await fetch(`http://127.0.0.1:3001${url}`, {
+  const response = await fetch(`${SERVER_URL}${url}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ systemPrompt, userMessage }),

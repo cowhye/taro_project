@@ -1,7 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from "@supabase/supabase-js";
 
-// 새 프로젝트(agvpfoasjjqeixcgjinp) 주소와 키로 교체 완료!
-export const supabase = createClient(
-  'https://agvpfoasjjqeixcgjinp.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFndnBmb2FzampxZWl4Y2dqaW5wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxODIzNTQsImV4cCI6MjA5NDc1ODM1NH0.5NW--CP0iwUP9DKvkMaigGMjXYJAwkELly1f9GUKkfY'
-)
+// 환경변수는 client/.env 파일에 설정 (client/.env.example 참고)
+export const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_KEY);

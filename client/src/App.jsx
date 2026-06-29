@@ -94,7 +94,7 @@ function App() {
         direction: cardStates[index].isReversed ? 'reversed' : 'upright'
       }));
       
-      const response = await sendCardsToLLM(userTopic, selectedCardsInfo, llmSpread.positions);
+      const response = await sendCardsToLLM(userTopic, selectedCardsInfo);
       setInterpretationResult(response);
       
       if (session) {
